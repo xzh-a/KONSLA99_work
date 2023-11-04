@@ -1,0 +1,1 @@
+cmd_/home/vtoree/working/report/w9/ledbutton_example/gpio_driver.ko := aarch64-linux-gnu-ld -r  -EL  -maarch64elf -z noexecstack   --build-id=sha1  -T scripts/module.lds -o /home/vtoree/working/report/w9/ledbutton_example/gpio_driver.ko /home/vtoree/working/report/w9/ledbutton_example/gpio_driver.o /home/vtoree/working/report/w9/ledbutton_example/gpio_driver.mod.o;  true
