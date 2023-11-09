@@ -1,1 +1,0 @@
-cmd_/home/vtoree/working/report/w9/ledbutton_example/Module.symvers := sed 's/\.ko$$/\.o/' /home/vtoree/working/report/w9/ledbutton_example/modules.order | scripts/mod/modpost -m -a  -o /home/vtoree/working/report/w9/ledbutton_example/Module.symvers -e -i Module.symvers   -T -
