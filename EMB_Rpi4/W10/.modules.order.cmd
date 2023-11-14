@@ -1,0 +1,1 @@
+cmd_/home/vtoree/working/mingi-chae/EMB_Rpi4/W10/modules.order := {   echo /home/vtoree/working/mingi-chae/EMB_Rpi4/W10/seg_driver.ko; :; } | awk '!x[$$0]++' - > /home/vtoree/working/mingi-chae/EMB_Rpi4/W10/modules.order
