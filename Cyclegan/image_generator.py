@@ -12,7 +12,7 @@ import os
 #train시 ngf, ndf의 값은 32,64이므로 image generator 역시 그대로 적용해준다.
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=False, default='amature2master', help='input dataset')
+parser.add_argument('--dataset', required=False, default=None, help='input dataset')
 parser.add_argument('--batch_size', type=int, default=1, help='test batch size')
 parser.add_argument('--ngf', type=int, default=32)
 parser.add_argument('--ndf', type=int, default=64)
@@ -69,7 +69,7 @@ for i, real_A in enumerate(test_data_loader_A):
     recon_A = G_B(fake_B)
 
     # Show result for test data
-    utils.plot_test_result(real_A, fake_B, recon_A, i, save=True, save_dir=save_dir + 'AtoB/')
+    utils.plot_test_result( fake_B, i, save=True, save_dir=save_dir + 'AtoB/')
 
     print('%d images are generated.' % (i + 1))
 
@@ -83,6 +83,6 @@ for i, real_B in enumerate(test_data_loader_B):
     recon_B = G_A(fake_A)
 
     # Show result for test data
-    utils.plot_test_result(real_B, fake_A, recon_B, i, save=True, save_dir=save_dir + 'BtoA/')
+    utils.plot_test_result( fake_A, i, save=True, save_dir=save_dir + 'BtoA/')
 
     print('%d images are generated.' % (i + 1))
