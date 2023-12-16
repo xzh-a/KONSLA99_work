@@ -36,6 +36,9 @@ root = tk.Tk()
 root.title("CycleGan project")
 root.geometry("300x350")
 
+label=tk.Label(root, text="")
+label.pack()
+
 # 데이터셋 표시
 dataset_label = ttk.Label(root, text="선택된 스타일변환: None")
 dataset_label.pack()
@@ -55,6 +58,10 @@ run_button.pack()
 # 버튼과 레이블 사이에 여백을 추가
 separator1 = ttk.Separator(root, orient="horizontal")
 separator1.pack(fill="x", padx=5, pady=5)
+
+#A폴더가 input임을 알리기 위한 설명
+label=tk.Label(root, text="input data=A")
+label.pack()
 
 # 확인할 폴더
 frame_direction = tk.Frame(root)
