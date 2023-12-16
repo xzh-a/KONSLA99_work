@@ -88,12 +88,12 @@ def plot_train_result(real_image, gen_image, recon_image, epoch, save=False, sav
         plt.close()
 
 
-def plot_test_result(real_image, gen_image, recon_image, index, save=False, save_dir='results/', show=False):
-    fig_size = (real_image.size(2) * 3 / 100, real_image.size(3) / 100)
-    fig, axes = plt.subplots(1, 3, figsize=fig_size)
+def plot_test_result(fake_image, index, save=False, save_dir='results/', show=False):
+    fig_size = (fake_image.size(2) * 3 / 100, fake_image.size(3) / 100)
+    fig, axes = plt.subplots(1, 1, figsize=fig_size)
 
-    imgs = [to_np(real_image), to_np(gen_image), to_np(recon_image)]
-    for ax, img in zip(axes.flatten(), imgs):
+    imgs = [to_np(fake_image)]
+    for ax, img in zip([axes], imgs):
         ax.axis('off')
         ax.set_adjustable('box')
         # Scale to 0-255
