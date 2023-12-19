@@ -1,10 +1,12 @@
 import numpy as np, cv2
-import main
+
 import cv2
 import matplotlib.pyplot as plt
 import shutil
 import sys
 
+combined_path = None 
+combined_path1 = None
 
 
 def nonmax_suppression(sobel, direct):
@@ -46,11 +48,29 @@ def hysteresis_th(max_sobel, low, high):
             if max_sobel[i, j] >= high: trace(max_sobel, i, j, low)
 
 
+def main():
+    # 명령행 인자에서 데이터 추출
+    combined_path = sys.argv[1]
+    combined_path1 = sys.argv[2]
 
-image_path = "C:/Users/vtoree/Desktop/CYCLE_GAN/imgpath/iphone.jpg"
+    print(f"Received combined_path: {combined_path}")
+    print(f"Received combined_path1: {combined_path1}")
+
+    
+    
+
+    # 이후 작업을 수행하면 됩니다.
+
+if __name__ == "__main__":
+    image_path_A_drive = sys.argv[1]
+    image_path = sys.argv[2]
 
 
 
+
+
+
+# C:\Users\vtoree\Desktop\CYCLE_GAN\imgpath
 
 image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
@@ -143,6 +163,10 @@ plt.show()
 # 등고선 찾기
 contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+
+
+
+
 # 등고선 중 가장 큰 것 선택
 largest_contour = max(contours, key=cv2.contourArea)
 
@@ -176,7 +200,7 @@ plt.show()
 
 
 #print(f"",image_path_A_drive)
-image_path_A_drive = "D:/CYCLE_GAN/CycleGAN-1/amature2master_test_results/AtoB/Test_result_9.png"
+#image_path_A_drive = combined_path
 image_A = cv2.imread(image_path_A_drive)
 
 
@@ -222,16 +246,8 @@ contours, _ = cv2.findContours(canny_bin, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
 
 
 
-# 엣지 검출 결과 이미지를 이진 이미지로 변환
-canny_bin = cv2.threshold(canny, 128, 255, cv2.THRESH_BINARY)[1]
-
-# 엣지가 있는 부분의 외곽선 찾기
-contours, _ = cv2.findContours(canny_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
 # 외곽선 중에서 가장 큰 부분 선택
 largest_contour = max(contours, key=cv2.contourArea)
-smallest_contour = min(contours, key = cv2.contourArea)
-
 
 
 # 외곽선을 감싸는 사각형 좌표 계산
