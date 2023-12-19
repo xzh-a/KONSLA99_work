@@ -9,8 +9,9 @@ import sys
 # 전역 변수로 params 정의
 params = {'dataset': None, 'direction': 'AtoB'}
 custom_entry = None  # 전역 변수로 선언
-
-
+combined_path1 =None
+combined_path = None
+result_path = None
 def change_dataset(dataset):
     params['dataset'] = dataset
     dataset_label.config(text=f"선택된 스타일 변환: {dataset}")
@@ -44,6 +45,39 @@ def open_save_dir():
     except FileNotFoundError:
         print(f"에러: 폴더 {save_dir}이(가) 존재하지 않습니다.")
 
+
+
+def save_img_dir1():
+    global result_path
+    custom_dir1 = "phone.jpg"
+    base_path1 = "C:/Users/vtoree/Desktop/CYCLE_GAN/imgpath"
+
+    combined_path1 = os.path.join(base_path1,custom_dir1).replace("\\","/")
+    print(f"",combined_path1)
+
+    result_path =  combined_path1
+def save_img_dir2():
+    global result_path
+    custom_dir1 = "buzz.jpg"
+    base_path1 = "C:/Users/vtoree/Desktop/CYCLE_GAN/imgpath"
+
+    combined_path1 = os.path.join(base_path1,custom_dir1).replace("\\","/")
+    print(f"",combined_path1)
+    result_path =  combined_path1
+
+
+def save_img_dir3():
+    global result_path
+    custom_dir1 = "pad.jpg"
+    base_path1 = "C:/Users/vtoree/Desktop/CYCLE_GAN/imgpath"
+
+    combined_path1 = os.path.join(base_path1,custom_dir1).replace("\\","/")
+    print(f"",combined_path1)
+    result_path =  combined_path1
+
+
+
+
 def value_check(self):
     label.config(text="숫자를 입력하세요.")
     valid = False
@@ -60,15 +94,16 @@ def value_error(self):
 
 
 def open_custom_dir():
+    global result_path
     custom_dir = custom_entry.get()
     base_path = "D:\CYCLE_GAN\CycleGAN-1/amature2master_test_results\AtoB"  # 슬래시로 경로를 지정
     combined_path = os.path.join(base_path, custom_dir).replace("\\","/")
     print(f"",combined_path)
-    
+    combined_path1 = result_path
 
-   
+    
     # img_result_path를 그대로 전달
-    subprocess.run([sys.executable, 'D:\CYCLE_GAN\CycleGAN-1\edge.py', combined_path])
+    subprocess.run([sys.executable, 'D:\CYCLE_GAN\CycleGAN-1\edge.py', combined_path,combined_path1])
 
 
     
@@ -119,9 +154,9 @@ direction_label.pack()
 # Open 버튼
 obj = tk.Frame(root)
 open_save_dir_button = ttk.Button(obj, text='이미지 확인', command=open_save_dir)
-open_obj_dir_button = ttk.Button(obj, text='obj')
+#open_obj_dir_button = ttk.Button(obj, text='obj')
 open_save_dir_button.grid(row=1, column=0, padx=(0, 5))  # 여백을 추가합니다.
-open_obj_dir_button.grid(row=1, column=1)
+#open_obj_dir_button.grid(row=1, column=1)
 
 # 사용자 지정 경로 Entry 및 확인 버튼
 custom_entry_label = ttk.Label(obj, text="이미지 선택:")
@@ -139,6 +174,30 @@ obj.grid_columnconfigure(1, weight=1)
 obj.grid_rowconfigure(1, weight=1)
 
 obj.pack()
+
+
+
+# Open 버튼
+obj = tk.Frame(root)
+open_phone__button = ttk.Button(obj, text='Phone', command=save_img_dir1)
+open_earphone_button = ttk.Button(obj, text='Earphone',command=save_img_dir2)
+open__labtop_button = ttk.Button(obj, text='Labtop',command=save_img_dir3)
+
+open_phone__button .grid(row=1, column=0, padx=(0, 1))  # 여백을 추가합니다.
+open_earphone_button.grid(row=1, column=1,padx=(0,1))
+open__labtop_button.grid(row=1, column=2)
+
+obj.pack()
+
+
+
+
+
+
+
+
+
+
 
 # 버튼과 레이블 사이에 여백을 추가
 separator2 = ttk.Separator(root, orient="horizontal")
