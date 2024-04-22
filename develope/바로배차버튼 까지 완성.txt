@@ -1,0 +1,75 @@
+import discord
+from discord.ext import commands
+from discord.ui import Button, View
+import asyncio
+from discord.utils import get
+
+# 봇 설정: 기본 의도(intents)와 함께 봇 인스턴스를 생성합니다.
+# 이 의도는 봇이 서버의 멤버 정보에 접근할 수 있도록 설정합니다.
+intents = discord.Intents.all()
+intents.members = True  
+bot = commands.Bot(command_prefix='/', intents=intents)
+
+# 봇이 준비되면 콘솔에 메시지를 출력합니다.
+@bot.event
+async def on_ready():
+    print(f'{bot.user.name} has connected to Discord!')
+
+# 완료증명 명령어: 사용자가 콜 완료를 증명할 때 사용합니다.
+@bot.command(name='완료증명', help='콜 완료를 증명합니다.')
+async def complete_call(ctx, member: discord.Member):
+    # 콜 완료 메시지를 채널에 보냅니다.
+    await ctx.send(f'{member.name}의 콜이 완료되었습니다.')
+
+############################################################################################################################################################
+# 아래 내용은 버튼에 관한 내용
+############################################################################################################################################################
+        
+class DispatchView(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+
+    @discord.ui.button(label="바로배차", style=discord.ButtonStyle.green, custom_id="immediate_dispatch")
+    async def handle_immediate_dispatch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        member = interaction.user
+        # '바로배차'와 '배차됨' 역할을 찾습니다.
+        immediate_role = get(guild.roles, name="바로배차")
+        dispatched_role = get(guild.roles, name="배차 됨")
+        # 사용자에게 역할을 부여합니다.
+        if immediate_role and dispatched_role:
+            await member.add_roles(immediate_role, dispatched_role)
+            # 사용자에게 콜 주문 내역을 전송합니다.
+            call_order_details = "여기에 콜 주문 내역을 입력하세요."
+            await member.send(call_order_details)
+            # 인터랙션에 대한 응답으로 성공 메시지를 보냅니다.
+            await interaction.response.send_message(f"{member.display_name}님, 배차 요청이 성공적으로 처리되었습니다.", ephemeral=True)
+        else:
+            # 필요한 역할이 없는 경우, 에러 메시지를 보냅니다.
+            await interaction.response.send_message("필요한 역할을 찾을 수 없습니다.", ephemeral=True)
+
+############################################################################################################################################################
+# 아래 내용은 명령어에 관한 내용
+############################################################################################################################################################
+
+# 주문 명령어: 'Master' 역할을 가진 사용자만 콜 주문을 넣을 수 있습니다.           
+@bot.command(name='주문')
+async def order(ctx):
+    # 'Master' 역할을 확인합니다.
+    master_role = discord.utils.get(ctx.guild.roles, name="Master")
+    if master_role in ctx.author.roles:
+        # 배차를 위한 메시지를 서버 내의 특정 채널에 게시합니다.
+        channel = discord.utils.get(ctx.guild.text_channels, name="주문-배차")
+        if channel:
+            view = DispatchView()
+            await channel.send("배차를 선택해주세요:", view=view)
+            await ctx.send(f"주문 메시지가 {channel.mention} 채널에 게시되었습니다.")
+        else:
+            await ctx.send("'주문-배차' 채널을 찾을 수 없습니다.")
+    else:
+        await ctx.send("이 명령어는 'Master' 역할을 가진 사용자만 사용할 수 있습니다.")
+
+
+bot.run('MTIxNjY2NjI1MTY0NTAyNjM3NQ.G0pp_W.LLPaheYQ3vuieo9PAxsrzyW5_uTZ4UyWpTNFBc')
+#https://discord.com/oauth2/authorize?client_id=1216666251645026375&permissions=8&scope=bot
+#
