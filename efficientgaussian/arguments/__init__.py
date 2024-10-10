@@ -162,16 +162,15 @@ class PipelineParams(ParamGroup):
 
 class OptimizationParams(ParamGroup):
     def __init__(self, parser, config):
-        self.iterations = 5000 #10000#7000#30_000 #30000에서 줄여보기 이때 prune 도 줄여야 할 것
-        # iter이 붙는 parameter모두 수정
+        self.iterations = 7_000  # 30000에서 7000으로 수정
         self.position_lr_init = 0.00016
         self.position_lr_final = 0.0000016
         self.position_lr_delay_mult = 0.01
-        self.position_lr_max_steps = 5000 #10000#7000 #30_000
+        self.position_lr_max_steps = 7_000  # 30000에서 7000으로 수정
         self.features_dc_lr = 0.0025
-        self.features_rest_lr = self.features_dc_lr/20.0
-        # self.latents_lr_scaling = [1.0]*6
-        # self.ldecs_lr = [1.0e-4]*6
+        self.features_rest_lr = self.features_dc_lr / 20.0
+        # self.latents_lr_scaling = [1.0] * 6
+        # self.ldecs_lr = [1.0e-4] * 6
         self.opacity_lr = 0.05
         self.scaling_lr = 0.005
         self.rotation_lr = 0.001
@@ -194,20 +193,21 @@ class OptimizationParams(ParamGroup):
         self.use_amp = False
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2
-        self.densification_interval =  16 #33#22#100
-        self.opacity_reset_interval = 500 #1000#700#3000
-        self.densify_from_iter =  85 #170#120#500
-        self.densify_until_iter = 2500 #5000#3500#15_000
+        self.densification_interval = 23  # 100에서 23으로 수정 (7,000 / 30,000 비율)
+        self.opacity_reset_interval = 700  # 3000에서 700으로 수정
+        self.densify_from_iter = 116  # 500에서 116으로 수정
+        self.densify_until_iter = 3_500  # 15000에서 3500으로 수정
         self.densify_grad_threshold = 0.0002
-        self.infl_prune_interval = 500 #1000#700#3000
+        self.infl_prune_interval = 700  # 3000에서 700으로 수정
         self.quantile_threshold = 0.05
-        self.prune_until_iter = 4000 #8000#5600#24_000
+        self.prune_until_iter = 5_600  # 24000에서 5600으로 수정
         self.accumulate_fraction = 0.0
         self.search_best_iters = 0
         self.resize_period = 0.0
         self.resize_scale = 1.0
-        self.transform = "downsample" # "blur", "resize", "downsample", "none"
+        self.transform = "downsample"  # "blur", "resize", "downsample", "none"
         super().__init__(parser, config, "Optimization Parameters")
+
 
     def extract(self, args):
         g = super().extract(args)
