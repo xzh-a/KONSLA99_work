@@ -534,9 +534,9 @@ def evaluate(images, scene_dir, iteration, wandb_enabled=False):
 if __name__ == "__main__":
 
     # Config file is used for argument defaults. Command line arguments override config file.
-    config_path = sys.argv[sys.argv.index("--config")+1] if "--config" in sys.argv else None
+    config_path = sys.argv[sys.argv.index("--config") + 1] if "--config" in sys.argv else None
     if config_path:
-        with open(config_path) as f:
+        with open(config_path, 'r', encoding='utf-8') as f:  # 인코딩 UTF-8로 지정
             config = yaml.load(f, Loader=yaml.FullLoader)
     else:
         config = {}
