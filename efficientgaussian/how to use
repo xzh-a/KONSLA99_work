@@ -2,4 +2,132 @@ python train_eval.py --config configs/efficient-3dgs.yaml -s <path to COLMAP or 
 
 python train_eval.py --config configs/efficient-3dgs.yaml -s custom_data/5frames -m log_dir/custom
 
-python .\p_train.py --config .\configs\efficient-3dgs.yaml -s .\custom_data\5frames\ -m .\log_dir\strike_freedom\
+python .\p_train.py --config .\configs\efficient-3dgs.yaml -s .\custom_data\5frames\ -m .\log_dir\strike_freedom\ --save_ply
+
+# rendering
+
+python train_eval.py --config --config configs/efficient-3dgs.yaml -s <path to COLMAP or NeRF Synthetic dataset> -m <path to log directory of saved model> --skip_train
+--save_images
+
+or
+python render.py -m <path to trained model>
+
+
+# 360 rendering
+
+
+# viewer
+
+PS D:\code\3dgs> ./viewers/bin/SIBR_GaussianViewer_app -m ..\..\git_hub_repository\mingi-chae\efficientgaussian\log_dir\strike_freedom\
+
+
+
+        # 색상 정보 추출 - 이미지 로드
+        image_path = dataset.get_image_path(iteration)  # 이미지 경로 가져오기
+        image = Image.open(image_path)  # 이미지 로드
+        dominant_colors = extract_color_info(image)  # 색상 추출
+        print(f"Iteration {iteration}: Detected colors - {dominant_colors}")  # 색상 출력
+
+이부분 수정하라고?
+그리고 시발 처음에 수정전 코드에서 image를 어떤식으로 불러오는지 확인하고 코드를 추가했어야 하는거아니냐 개 시발련아 
+AttributeError: 'GroupParams' object has no attribute 'get_image'
+Training progress:   0%|                                    
+어차피 오류네 시발 좇 병신같은년이
+
+
+if __name__ == "__main__":
+
+    # Config file is used for argument defaults. Command line arguments override config file.
+    config_path = sys.argv[sys.argv.index("--config")+1] if "--config" in sys.argv else None
+    if config_path:
+        with open(config_path) as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+    else:
+        config = {}
+    config = defaultdict(lambda: {}, config)
+
+    parser = ArgumentParser(description="Training script parameters")
+    lp = ModelParams(parser, config['model_params'])
+    op = OptimizationParams(parser, config['opt_params'])
+    pp = PipelineParams(parser, config['pipe_params'])
+    qp = QuantizeParams(parser, config['quantize_params'])
+
+    parser.add_argument('--config', type=str, default=None)
+    parser.add_argument('--ip', type=str, default="127.0.0.1")
+    parser.add_argument('--port', type=int, default=6009)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--debug_from', type=int, default=-1)
+    parser.add_argument('--detect_anomaly', action='store_true', default=False)
+    parser.add_argument("--save_iterations", nargs="+", type=int, default=[])
+    parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
+    parser.add_argument("--start_checkpoint", type=str, default = None)
+    parser.add_argument('--resume', action='store_true', default=False)
+    parser.add_argument('--retrain', action='store_true', default=False)
+    parser.add_argument('--retest', action='store_true', default=False)
+    parser.add_argument('--delete_pc', action='store_true', default=False)
+
+    parser.add_argument("--render_iteration", default=-1, type=int)
+    parser.add_argument("--skip_train", action="store_true")
+    parser.add_argument("--skip_test", action="store_true")
+    args = parser.parse_args(sys.argv[1:])
+    
+    # args.save_iterations.append(args.iterations)
+    
+    lp_args = lp.extract(args)
+    op_args = op.extract(args)
+    pp_args = pp.extract(args)
+    qp_args = qp.extract(args)
+    print('Running on ', socket.gethostname())
+    print("Optimizing " + args.source_path)
+
+    # Initialize system state (RNG)
+    safe_state(args.quiet)
+
+    if args.resume:
+        args.start_checkpoint = os.path.join(args.model_path, "resume_ckpt.pth")
+
+    wandb_enabled=(WANDB_FOUND and lp_args.use_wandb)
+    tb_writer = prepare_output_and_logger(lp_args, args)
+    # Start GUI server, configure and run training
+    # network_gui.init(args.ip, args.port)
+    torch.autograd.set_detect_anomaly(args.detect_anomaly)
+    best_iter = -1
+    if wandb_enabled:
+        wandb.run.summary['GPU'] = torch.cuda.get_device_name(0).split()[-1]
+    if not args.skip_train:
+        if os.path.exists(os.path.join(args.model_path,"results_training.json")) and not args.retrain:
+            print("Training complete at {}".format(args.model_path))
+        else:
+            training_time, best_iter = training(args.seed, lp_args, op_args, pp_args, qp_args, 
+                                                args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args)
+            full_dict = {args.model_path: {}}
+            full_dict[args.model_path].update({"Training time": training_time})
+            with open(os.path.join(args.model_path,"results_training.json"), 'w') as fp:
+                json.dump(full_dict[args.model_path], fp, indent=True)
+
+    if not args.skip_test:
+        if os.path.exists(os.path.join(args.model_path,"results.json")) and not args.retest:
+            print("Testing complete at {}".format(args.model_path))
+        else:
+            images, fps, loaded_iter = render_sets(lp_args, best_iter, pp_args, qp_args, 
+                                    args.skip_train, args.skip_test, wandb_enabled, op_args.use_amp)
+            if wandb_enabled:
+                wandb.log({"rendering_mem": get_gpu_memory()[0]}, step=3)
+            full_dict = evaluate(images, args.model_path, loaded_iter, wandb_enabled)
+            if wandb_enabled:
+                wandb.log({"rendering_mem": get_gpu_memory()[0]}, step=4)
+            full_dict[args.model_path].update({"FPS": fps})
+            with open(os.path.join(args.model_path,"results.json"), 'w') as fp:
+                json.dump(full_dict[args.model_path], fp, indent=True)
+    # open(os.path.join(args.model_path, "complete"), "a").close()
+    if os.path.exists(os.path.join(args.model_path, "point_cloud")) and args.delete_pc:
+        shutil.rmtree(os.path.join(args.model_path, "point_cloud"))
+    if os.path.exists(os.path.join(args.model_path, "point_cloud_best")) and args.delete_pc:
+        shutil.rmtree(os.path.join(args.model_path, "point_cloud_best"))
+
+    # All done
+    print("\nTraining complete.")
+
+여기 main이라던지 다른 부분은 수정안해도 되냐?
+니잎으로 색상추출 함수추가랑 training부분만 수정하랬다 시발련아

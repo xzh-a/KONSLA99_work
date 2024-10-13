@@ -55,11 +55,35 @@ except ImportError:
     WANDB_FOUND = False
 
 
-def extract_color_info(image: Image) -> list:
-    # """이미지에서 색상 정보를 추출하는 함수"""
-    colors = image.getcolors(maxcolors=1000)  # 최대 1000개의 색상을 추출
-    dominant_colors = [color for count, color in colors]  # 색상만 추출
-    return dominant_colors
+# 이미지에서 색상과 위치 정보를 불러오는 함수 추가
+def load_image_with_color_and_position(image_path):
+    """이미지에서 각 픽셀의 색상(RGB)과 위치 정보를 추출"""
+    img = Image.open(image_path).convert('RGB')  # RGB로 변환
+    img_data = np.array(img)  # NumPy 배열로 변환
+
+    height, width, _ = img_data.shape
+    color_info = []
+    
+    for y in range(height):
+        for x in range(width):
+            color = img_data[y, x]  # (x, y) 좌표의 RGB 색상 정보
+            color_info.append({'position': (x, y), 'color': color})  # 색상과 위치 추가
+
+    return color_info
+# 데이터셋 클래스 수정
+class CustomDataset:
+    def __init__(self, image_paths):
+        self.image_paths = image_paths
+    
+    def __getitem__(self, index):
+        # 이미지 불러오고 색상 정보 및 위치 정보를 포함
+        image_path = self.image_paths[index]
+        color_data = load_image_with_color_and_position(image_path)
+        
+        return color_data
+
+    def __len__(self):
+        return len(self.image_paths)
 
 def get_gpu_memory():
     command = "nvidia-smi --query-gpu=memory.used --format=csv"
@@ -85,7 +109,7 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
                                         end=1.0,
                                         )
     temperature_scheds = OrderedDict()
-    for i, param in enumerate(gaussians.param_names):
+    for i,param in enumerate(gaussians.param_names):
         temperature_scheds[param] = DecayScheduler(
                                         total_steps=opt.iterations+1,
                                         decay_name='exp',
@@ -96,20 +120,20 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
     scene = Scene(dataset, gaussians)
     gaussians.training_setup(opt)
-    cam_centers = torch.zeros(opt.iterations, 3)
+    cam_centers = torch.zeros(opt.iterations,3)
     if checkpoint and os.path.exists(checkpoint):
         (model_params, first_iter, cam_centers) = torch.load(checkpoint)
         gaussians.restore(model_params, opt)
-        print(f"Restored model from checkpoint {checkpoint}, starting from iteration {first_iter}")
+        print("Restored model from checkpoint {}, starting from iteration {}".format(checkpoint, first_iter))
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
-    iter_start = torch.cuda.Event(enable_timing=True)
-    iter_end = torch.cuda.Event(enable_timing=True)
+    iter_start = torch.cuda.Event(enable_timing = True)
+    iter_end = torch.cuda.Event(enable_timing = True)
     if opt.use_amp:
         scaler = torch.cuda.amp.GradScaler()
-
+        
     viewpoint_stack = None
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
@@ -117,14 +141,14 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
     cur_size, cur_psnr = 0, 0
     cam_mean_distances = mean_distances(scene.getTrainCameras(), generator)
     cam_scales = cam_mean_distances / cam_mean_distances.mean()
-    cam_scales = torch.pow(cam_scales, 4) / torch.pow(cam_scales, 4).mean()
+    cam_scales = torch.pow(cam_scales, 4)/torch.pow(cam_scales, 4).mean()
 
     net_training_time = 0
+
     best_state_dict = None
     best_train_psnr = 0.0
     best_iter = 0
-
-    for iteration in range(first_iter, opt.iterations + 1):
+    for iteration in range(first_iter, opt.iterations + 1): 
         if network_gui.conn == None:
             network_gui.try_connect()
         while network_gui.conn != None:
@@ -142,14 +166,13 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
         iter_start.record()
 
-        # Learning rate update
         gaussians.update_learning_rate(iteration, quantize)
-        for i, param in enumerate(gaussians.param_names):
+        for i,param in enumerate(gaussians.param_names):
             gaussians.latent_decoders[param].temperature = temperature_scheds[param](iteration)
             gaussians.latent_decoders[param].use_gumbel = ((iteration / opt.iterations) < quantize.gumbel_period[i]) and quantize.use_gumbel[i]
 
-        if (iteration - 1) % 10 == 0:
-            for i, param in enumerate(gaussians.param_names):
+        if (iteration-1) % 10 == 0:
+            for i,param in enumerate(gaussians.param_names):
                 if isinstance(gaussians.latent_decoders[param], LatentDecoder):
                     gaussians.latent_decoders[param].normalize(gaussians._latents[param])
 
@@ -158,36 +181,28 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
         if not viewpoint_stack:
             viewpoint_stack = scene.getTrainCameras().copy()
-
-        cam_idx = generator.randint(0, len(viewpoint_stack) - 1)
+        
+        cam_idx = generator.randint(0, len(viewpoint_stack)-1)
         dist_scale = cam_scales[cam_idx]
         viewpoint_cam = viewpoint_stack.pop(cam_idx)
 
-        # 색상 정보 추출 - 이미지 로드
-        image_path = dataset.get_image_path(iteration)  # 이미지 경로 가져오기
-        image = Image.open(image_path)  # 이미지 로드
-        dominant_colors = extract_color_info(image)  # 색상 추출
-        print(f"Iteration {iteration}: Detected colors - {dominant_colors}")  # 색상 출력
-
-        # GT 이미지 가져오기
         gt_image = viewpoint_cam.original_image.cuda()
         if opt.transform == "resize":
             gt_image = resize_image(gt_image, resize_scale_sched(iteration))
-        elif "blur" in opt.transform and resize_scale_sched(iteration) != 1.0:
-            if (iteration - 1) % 100 == 0:
+        elif "blur" in opt.transform and resize_scale_sched(iteration)!=1.0:
+            if (iteration-1) % 100 == 0:
                 transform = blur_image(resize_scale_sched(iteration), opt.transform)
             gt_image = transform(gt_image)
         elif opt.transform == "downsample":
             gt_image = downsample_image(gt_image, resize_scale_sched(iteration))
 
-        cam_centers[iteration - 1] = viewpoint_cam.camera_center
+        cam_centers[iteration-1] = viewpoint_cam.camera_center
 
         if (iteration - 1) == debug_from:
             pipe.debug = True
-
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=opt.use_amp):
             render_pkg = render(viewpoint_cam, gaussians, pipe, background, image_shape=gt_image.shape,
-                                get_infl=iteration < opt.prune_until_iter)
+                                get_infl=iteration<opt.prune_until_iter)
             image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
             Ll1 = l1_loss(image, gt_image)
@@ -207,54 +222,83 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
             iter_time = iter_start.elapsed_time(iter_end)
             net_training_time += iter_time
-            psnr_train, psnr_test = training_report(tb_writer, wandb_enabled, dataset.wandb_log_images, iteration, Ll1, loss,
-                                                    l1_loss, cur_size, iter_time, net_training_time, dataset.testing_interval,
-                                                    opt.iterations - opt.search_best_iters, scene, render, (pipe, background))
+            psnr_train, psnr_test = training_report(tb_writer, wandb_enabled, dataset.wandb_log_images, iteration, Ll1, loss, 
+                                                    l1_loss, cur_size, iter_time, net_training_time, dataset.testing_interval, 
+                                                    opt.iterations-opt.search_best_iters, scene, render, (pipe, background))
 
             if psnr_test:
                 cur_psnr = psnr_test
 
-            if (iteration - 1) % dataset.log_interval == 0 or iteration == opt.iterations:
-                cur_size = gaussians.size() / 8 / (10**6)
+            if (iteration -1)% dataset.log_interval == 0 or iteration == opt.iterations:
+                cur_size = gaussians.size()/8/(10**6)
                 log_dict = {
-                    "Loss": f"{ema_loss_for_log:.{5}f}",
-                    "Num points": f"{gaussians._xyz.shape[0]}",
-                    "Size (MB)": f"{cur_size:.{2}f}",
-                    "Resize": f"{resize_scale_sched(iteration):.{2}f}",
-                    "PSNR": f"{cur_psnr:.{2}f}",
-                }
+                            "Loss": f"{ema_loss_for_log:.{5}f}",
+                            "Num points": f"{gaussians._xyz.shape[0]}",
+                            "Size (MB)": f"{cur_size:.{2}f}",
+                            "Resize": f"{resize_scale_sched(iteration):.{2}f}",
+                            "PSNR": f"{cur_psnr:.{2}f}",
+                            }
                 progress_bar.set_postfix(log_dict)
                 progress_bar.update(dataset.log_interval)
+            if iteration == opt.iterations:
+                progress_bar.close()
 
-            if iteration in saving_iterations:
-                print(f"\n[ITER {iteration}] Saving Gaussians")
+            if (iteration in saving_iterations):
+                print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save_compressed(iteration, quantize)
 
-            if iteration < opt.densify_until_iter:
-                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                    gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent)
+            if iteration < opt.prune_until_iter:
+                gaussians.add_influence_stats(render_pkg["influence"])
 
-            if iteration % opt.infl_prune_interval == 0 and iteration < opt.prune_until_iter:
+            if iteration < opt.densify_until_iter:
+                if iteration <= opt.densify_from_iter or \
+                    (iteration > opt.densify_from_iter and ((iteration-opt.densify_from_iter) % opt.densification_interval >= opt.accumulate_fraction*(opt.densification_interval-1))): 
+                    gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+                    gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+
+                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                    size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                    gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
+                
+                if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
+                    gaussians.reset_opacity()
+
+            if iteration % opt.infl_prune_interval == 0 and iteration<opt.prune_until_iter:
                 gaussians.prune_influence(quantile_threshold=opt.quantile_threshold)
 
-            if iteration in checkpoint_iterations:
-                torch.save((gaussians.capture(), iteration, cam_centers), os.path.join(scene.model_path, "chkpnt" + str(iteration) + ".pth"))
+            if iteration < opt.iterations:
+                if opt.use_amp:
+                    scaler.step(gaussians.optimizer)
+                    scaler.update()
+                else:
+                    gaussians.optimizer.step()
+                gaussians.optimizer.zero_grad(set_to_none = True)
+
+            if (iteration in checkpoint_iterations):
+                print("\n[ITER {}] Saving Checkpoint".format(iteration))
+                torch.save((gaussians.capture(), iteration, cam_centers), 
+                           os.path.join(scene.model_path,"chkpnt" + str(iteration) + ".pth"))
 
             if (dataset.checkpoint_interval > 0 and iteration % dataset.checkpoint_interval == 0):
                 torch.save((gaussians.capture(), iteration, cam_centers), os.path.join(scene.model_path, "resume_ckpt.pth"))
 
             if psnr_train and psnr_train > best_train_psnr:
-                print(f"\n[ITER {iteration}] Saving Gaussians")
+                print("\n[ITER {}] Saving Gaussians".format(iteration))
+                if dataset.save_ply:
+                    scene.save_best()
                 scene.save_best_compressed(quantize)
                 best_iter = iteration
 
     if dataset.save_ply:
         scene.link_best(best_iter)
     scene.link_best_compressed(best_iter)
-    if wandb_enabled:
-        wandb.run.summary['training_time'] = net_training_time / 1000
+    if os.path.exists(os.path.join(scene.model_path, "resume_ckpt.pth")):
+        os.remove(os.path.join(scene.model_path, "resume_ckpt.pth"))
 
-    return net_training_time / 1000, best_iter
+    if wandb_enabled:
+        wandb.run.summary['training_time'] = net_training_time/1000
+
+    return net_training_time/1000, best_iter
 
 def prepare_output_and_logger(args, all_args):    
     if not args.model_path:
