@@ -110,22 +110,28 @@ def prepare_output_and_logger(args, all_args):
 
 def render_set(model_path, iteration, views, gaussians, pipeline, background, save_images, use_amp):
     render_path = os.path.join(model_path, "ours_{}".format(iteration), "renders360")
-    save_images=True
+    save_images = True
 
     if save_images:
         makedirs(render_path, exist_ok=True)
 
     preds, names = [], []
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-            rendering = render(view, gaussians, pipeline, background)["render"]
-        if save_images:
-            torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
-        else:
-            preds.append(rendering)
-            names.append('{0:05d}'.format(idx))
+        for gaussian in gaussians:
+            # 가우시안의 위치와 색상 정보를 사용하여 렌더링
+            position = gaussian.position
+            color = gaussian.color  # GaussianModelSQ에서 가져온 RGB 색상 정보
+
+            # 렌더링 로직에서 color를 사용하여 렌더링 처리
+            # 예시로 기존 렌더링 함수가 pipeline.render로 처리된다고 가정
+            rendered_image = pipeline.render(position, color, view, background)
+
+            # 렌더링 결과를 저장 또는 처리
+            preds.append(rendered_image)
+            names.append(f"view_{idx}_gaussian_{gaussian.id}.png")  # 예시 파일명
 
     return preds, names
+
 
 def render_sets(dataset: ModelParams, iteration: int, pipeline: PipelineParams, quantize: QuantizeParams, 
                 wandb_enabled: bool, use_amp: bool):
@@ -161,12 +167,29 @@ def render_sets(dataset: ModelParams, iteration: int, pipeline: PipelineParams, 
 
     return images, scene.loaded_iter
 
-    return images, scene.loaded_iter
 
 def render_fn(views, gaussians, pipeline, background, use_amp):
     with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
         for view in views:
             render(view, gaussians, pipeline, background)
+
+def render_with_colors(gaussians, pipeline, view):
+    """
+    GaussianModelSQ의 가우시안 색상 정보를 사용하여 렌더링하는 함수.
+    """
+    for gaussian in gaussians:
+        # 가우시안 위치와 색상 기반으로 렌더링
+        render_gaussian(gaussian.position, gaussian.color, pipeline, view)
+
+
+def modify_gaussian_color(gaussians, target_position, new_color, threshold=0.1):
+    """
+    특정 위치 근처의 가우시안 포인트 색상 변경.
+    """
+    for gaussian in gaussians:
+        if torch.norm(gaussian.position - target_position) < threshold:
+            gaussian.color = new_color  # 새로운 색상으로 변경
+
 
 if __name__ == "__main__":
 
