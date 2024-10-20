@@ -1,0 +1,1 @@
+cmd_//home/cocacola/working/proj/easy_version/driver/Module.symvers := sed 's/ko$$/o/' //home/cocacola/working/proj/easy_version/driver/modules.order | scripts/mod/modpost -m -a  -o //home/cocacola/working/proj/easy_version/driver/Module.symvers -e -i Module.symvers   -T -

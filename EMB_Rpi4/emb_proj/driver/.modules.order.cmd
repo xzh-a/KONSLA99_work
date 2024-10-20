@@ -1,0 +1,1 @@
+cmd_//home/cocacola/working/proj/easy_version/driver/modules.order := {   echo //home/cocacola/working/proj/easy_version/driver/motor_driver.ko; :; } | awk '!x[$$0]++' - > //home/cocacola/working/proj/easy_version/driver/modules.order
