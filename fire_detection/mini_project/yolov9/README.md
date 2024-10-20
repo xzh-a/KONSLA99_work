@@ -37,7 +37,7 @@ Tensorrt를 적용하여 모델의 추론 성능을 개선했습니다.
 
 ## 결과 영상 시연
 
-![결과 영상](\KONSLA99_work\fire_detection\mini_project\yolov9\runs\detect\yolov9_17_detect8)
+![결과 영상](KONSLA99_work\fire_detection\mini_project\yolov9\runs\detect\yolov9_17_detect8)
 - 최종 모델을 이용한 산불 감지 결과는 아래의 결과 영상으로 확인할 수 있습니다.
 
 ## 사용 기술 및 도구
