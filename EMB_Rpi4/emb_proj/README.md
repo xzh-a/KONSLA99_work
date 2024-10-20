@@ -33,9 +33,9 @@ read_write - Device Nr. Major: 236, Minor: 1 was registered!
 다음 단계는 AI 모델 (`test2.py`)을 실행하고 그 출력을 메인 제어 프로그램 (`please.c`)에 파이프라인 구조를 사용하여 전달하는 것입니다.
 
 ```sh
-python3 /path/to/test2.py | ./please
+python3 /path/to/AI.py | ./main
 ```
-이 명령은 파이썬 스크립트를 실행하고 출력을 `please` 실행 파일에 직접 전달하여 AI의 결정에 따라 모터와 LED를 제어합니다.
+이 명령은 파이썬 스크립트를 실행하고 출력을 `main` 실행 파일에 직접 전달하여 AI의 결정에 따라 모터와 LED를 제어합니다.
 
 ### 3. 커널 모듈 제거
 실행 후에는 시스템 리소스를 해제하기 위해 커널 모듈을 제거하는 것이 중요합니다. 다음 명령을 사용하세요:
