@@ -15,7 +15,7 @@ if not os.path.exists(pipe_name):
 np.set_printoptions(suppress=True)
 
 # Load the TensorFlow Lite model
-tflite_interpreter = tflite.Interpreter(model_path="image_classify.tflite")
+tflite_interpreter = tflite.Interpreter(model_path="your_model.tflite")
 tflite_interpreter.allocate_tensors()
 
 # Get input and output tensors
@@ -36,7 +36,7 @@ with open(pipe_name, 'w') as pipe:
 
         # Resize the raw image into (224-height,224-width) pixels
         image = cv2.resize(image, (224, 224), interpolation=cv2.INTER_AREA)
-        image = cv2.flip(image,1)
+
         # Show the image in a window
         cv2.imshow("Webcam Image", image)
 
@@ -58,12 +58,16 @@ with open(pipe_name, 'w') as pipe:
         class_name = class_names[index]
         confidence_score = prediction[0][index]
 
-        if (confidence_score *100)>=75:
-            pipe_data = f"{class_name[2]}"
-            pipe.write(pipe_data)
-            pipe.flush()
+        # Print prediction and confidence score
+        print("Class:", class_name[2:], end="")
+        print("Confidence Score:", str(np.round(confidence_score * 100))[:-2], "%")
 
-       # time.sleep(1)
+        # 파이프에 데이터 쓰기
+        pipe_data = f"{str(np.round(confidence_score * 100))[:-2]} {class_name[2]}"
+        pipe.write(pipe_data)
+        pipe.flush()
+
+        #time.sleep(0.1)
 
         # Listen to the keyboard for presses
         keyboard_input = cv2.waitKey(1)
