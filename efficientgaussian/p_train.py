@@ -57,7 +57,7 @@ except ImportError:
 
 # 이미지에서 색상과 위치 정보를 불러오는 함수 추가
 def load_image_with_color_and_position(image_path):
-    """이미지에서 각 픽셀의 색상(RGB)과 위치 정보를 추출"""
+    # """이미지에서 각 픽셀의 색상(RGB)과 위치 정보를 추출"""
     img = Image.open(image_path).convert('RGB')  # RGB로 변환
     img_data = np.array(img)  # NumPy 배열로 변환
 
@@ -70,6 +70,46 @@ def load_image_with_color_and_position(image_path):
             color_info.append({'position': (x, y), 'color': color})  # 색상과 위치 추가
 
     return color_info
+def apply_mask(image_tensor, mask, new_color):
+    # """
+    # 특정 위치의 색상을 변경하기 위해 마스크를 적용하는 함수
+    # - image_tensor: 이미지 텐서 (H, W, 3)
+    # - mask: 마스크 텐서 (H, W), 값이 1인 곳만 색상을 변경
+    # - new_color: 변경할 색상 (R, G, B)
+    # """
+    masked_image = image_tensor.clone()
+    new_color_tensor = torch.tensor(new_color, dtype=torch.float32, device=image_tensor.device)
+    masked_image[mask == 1] = new_color_tensor
+    return masked_image
+
+def render_with_mask(viewpoint, gaussians, pipeline, background, mask_positions, new_color, image_shape):
+    # """
+    # 특정 위치의 색상을 변경하여 렌더링하는 함수
+    # - mask_positions: 색상을 변경할 위치의 리스트 [(x1, y1), (x2, y2), ...]
+    # - new_color: 변경할 색상 (R, G, B)
+    # """
+    render_result = render(viewpoint, gaussians, pipeline, background, image_shape=image_shape)["render"]
+    
+    # 마스크 생성 (이미지와 동일한 크기)
+    mask = torch.zeros((image_shape[0], image_shape[1]), dtype=torch.uint8, device=render_result.device)
+    for x, y in mask_positions:
+        if 0 <= x < image_shape[1] and 0 <= y < image_shape[0]:
+            mask[y, x] = 1
+
+    # 마스크를 적용하여 특정 위치의 색상을 변경
+    modified_render = apply_mask(render_result, mask, new_color)
+    return modified_render
+
+# 예시 사용 방법
+def main_render_example(viewpoint, gaussians, pipeline, background, image_shape):
+    # 파란색 차의 문 위치를 마스크로 정의 (예시 좌표들)
+    door_positions = [(50, 100), (51, 100), (52, 100)]  # 실제로는 더 많은 좌표가 필요
+    new_color = [255, 0, 0]  # 빨간색으로 변경
+
+    # 마스크를 사용한 렌더링
+    modified_image = render_with_mask(viewpoint, gaussians, pipeline, background, door_positions, new_color, image_shape)
+    return modified_image
+
 # 데이터셋 클래스 수정
 class CustomDataset:
     def __init__(self, image_paths):
