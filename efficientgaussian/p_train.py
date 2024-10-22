@@ -54,77 +54,6 @@ try:
 except ImportError:
     WANDB_FOUND = False
 
-
-# 이미지에서 색상과 위치 정보를 불러오는 함수 추가
-def load_image_with_color_and_position(image_path):
-    # """이미지에서 각 픽셀의 색상(RGB)과 위치 정보를 추출"""
-    img = Image.open(image_path).convert('RGB')  # RGB로 변환
-    img_data = np.array(img)  # NumPy 배열로 변환
-
-    height, width, _ = img_data.shape
-    color_info = []
-    
-    for y in range(height):
-        for x in range(width):
-            color = img_data[y, x]  # (x, y) 좌표의 RGB 색상 정보
-            color_info.append({'position': (x, y), 'color': color})  # 색상과 위치 추가
-
-    return color_info
-def apply_mask(image_tensor, mask, new_color):
-    # """
-    # 특정 위치의 색상을 변경하기 위해 마스크를 적용하는 함수
-    # - image_tensor: 이미지 텐서 (H, W, 3)
-    # - mask: 마스크 텐서 (H, W), 값이 1인 곳만 색상을 변경
-    # - new_color: 변경할 색상 (R, G, B)
-    # """
-    masked_image = image_tensor.clone()
-    new_color_tensor = torch.tensor(new_color, dtype=torch.float32, device=image_tensor.device)
-    masked_image[mask == 1] = new_color_tensor
-    return masked_image
-
-def render_with_mask(viewpoint, gaussians, pipeline, background, mask_positions, new_color, image_shape):
-    # """
-    # 특정 위치의 색상을 변경하여 렌더링하는 함수
-    # - mask_positions: 색상을 변경할 위치의 리스트 [(x1, y1), (x2, y2), ...]
-    # - new_color: 변경할 색상 (R, G, B)
-    # """
-    render_result = render(viewpoint, gaussians, pipeline, background, image_shape=image_shape)["render"]
-    
-    # 마스크 생성 (이미지와 동일한 크기)
-    mask = torch.zeros((image_shape[0], image_shape[1]), dtype=torch.uint8, device=render_result.device)
-    for x, y in mask_positions:
-        if 0 <= x < image_shape[1] and 0 <= y < image_shape[0]:
-            mask[y, x] = 1
-
-    # 마스크를 적용하여 특정 위치의 색상을 변경
-    modified_render = apply_mask(render_result, mask, new_color)
-    return modified_render
-
-# 예시 사용 방법
-def main_render_example(viewpoint, gaussians, pipeline, background, image_shape):
-    # 파란색 차의 문 위치를 마스크로 정의 (예시 좌표들)
-    door_positions = [(50, 100), (51, 100), (52, 100)]  # 실제로는 더 많은 좌표가 필요
-    new_color = [255, 0, 0]  # 빨간색으로 변경
-
-    # 마스크를 사용한 렌더링
-    modified_image = render_with_mask(viewpoint, gaussians, pipeline, background, door_positions, new_color, image_shape)
-    return modified_image
-
-# 데이터셋 클래스 수정
-class CustomDataset:
-    def __init__(self, image_paths):
-        self.image_paths = image_paths
-    
-    def __getitem__(self, index):
-        # 이미지 불러오고 색상 정보 및 위치 정보를 포함
-        image_path = self.image_paths[index]
-        color_data = load_image_with_color_and_position(image_path)
-        
-        return color_data
-
-    def __len__(self):
-        return len(self.image_paths)
-
 def get_gpu_memory():
     command = "nvidia-smi --query-gpu=memory.used --format=csv"
     memory_used_info = sp.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
@@ -189,6 +118,8 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
     best_train_psnr = 0.0
     best_iter = 0
     for iteration in range(first_iter, opt.iterations + 1): 
+        # if iteration==(opt.iterations//2):
+        #     gaussians.to_hc()
         if network_gui.conn == None:
             network_gui.try_connect()
         while network_gui.conn != None:
@@ -216,9 +147,11 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
                 if isinstance(gaussians.latent_decoders[param], LatentDecoder):
                     gaussians.latent_decoders[param].normalize(gaussians._latents[param])
 
+        # Every 1000 its we increase the levels of SH up to a maximum degree
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
 
+        # Pick a random Camera
         if not viewpoint_stack:
             viewpoint_stack = scene.getTrainCameras().copy()
         
@@ -226,6 +159,7 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
         dist_scale = cam_scales[cam_idx]
         viewpoint_cam = viewpoint_stack.pop(cam_idx)
 
+        # Loss
         gt_image = viewpoint_cam.original_image.cuda()
         if opt.transform == "resize":
             gt_image = resize_image(gt_image, resize_scale_sched(iteration))
@@ -238,6 +172,7 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
         cam_centers[iteration-1] = viewpoint_cam.camera_center
 
+        # Render
         if (iteration - 1) == debug_from:
             pipe.debug = True
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=opt.use_amp):
@@ -259,7 +194,9 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
         iter_end.record()
 
         with torch.no_grad():
+            # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
+            # Log and save
             iter_time = iter_start.elapsed_time(iter_end)
             net_training_time += iter_time
             psnr_train, psnr_test = training_report(tb_writer, wandb_enabled, dataset.wandb_log_images, iteration, Ll1, loss, 
@@ -285,18 +222,24 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
+                # scene.save(iteration)
                 scene.save_compressed(iteration, quantize)
 
             if iteration < opt.prune_until_iter:
                 gaussians.add_influence_stats(render_pkg["influence"])
 
+            # Densification
             if iteration < opt.densify_until_iter:
+                # Keep track of max radii in image-space for pruning
                 if iteration <= opt.densify_from_iter or \
                     (iteration > opt.densify_from_iter and ((iteration-opt.densify_from_iter) % opt.densification_interval >= opt.accumulate_fraction*(opt.densification_interval-1))): 
                     gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
                     gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
+                # if iteration > opt.densify_from_iter and iteration % len(scene.train_cameras[1.0]) == 0:
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                    # if iteration<1000:
+                    #     print('\n[ITER {}] Densifying'.format(iteration))
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                 
@@ -306,6 +249,7 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
             if iteration % opt.infl_prune_interval == 0 and iteration<opt.prune_until_iter:
                 gaussians.prune_influence(quantile_threshold=opt.quantile_threshold)
 
+            # Optimizer step
             if iteration < opt.iterations:
                 if opt.use_amp:
                     scaler.step(gaussians.optimizer)
@@ -314,6 +258,7 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
                     gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
 
+            # Used for intermediate checkpointing and resuming only
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration, cam_centers), 
@@ -324,14 +269,18 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
             if psnr_train and psnr_train > best_train_psnr:
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
+                # Save attributes in uncompressed point cloud .ply format (for visualization)
                 if dataset.save_ply:
                     scene.save_best()
+                # Save attributes in compress pkl format
                 scene.save_best_compressed(quantize)
                 best_iter = iteration
+                # best_state_dict = gaussians.capture_best_state()
 
     if dataset.save_ply:
         scene.link_best(best_iter)
     scene.link_best_compressed(best_iter)
+    # gaussians.restore_best_state(best_state_dict, opt)
     if os.path.exists(os.path.join(scene.model_path, "resume_ckpt.pth")):
         os.remove(os.path.join(scene.model_path, "resume_ckpt.pth"))
 

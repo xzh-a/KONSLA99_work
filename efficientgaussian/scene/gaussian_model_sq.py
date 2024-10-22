@@ -29,10 +29,10 @@ from utils.general_utils import strip_symmetric, build_scaling_rotation
 
 class GaussianModelSQ(GaussianModel):
 
-    def __init__(self, sh_degree: int, latent_args: QuantizeParams):
+    def __init__(self, sh_degree : int, latent_args: QuantizeParams):
         self.active_sh_degree = 0
         self.max_sh_degree = sh_degree 
-        self._latents = OrderedDict([(n, torch.empty(0)) for n in latent_args.param_names])
+        self._latents = OrderedDict([(n,torch.empty(0)) for n in latent_args.param_names])
         self.max_radii2D = torch.empty(0)
         self.xyz_gradient_accum = torch.empty(0)
         self.denom = torch.empty(0)
@@ -44,25 +44,19 @@ class GaussianModelSQ(GaussianModel):
         self.split_generator = torch.Generator(device="cuda")
         self.split_generator.manual_seed(latent_args.split_seed)
         self.setup_functions()
-
+        
         self.param_names = latent_args.param_names
         self.feature_dims = OrderedDict([
-            ("xyz", 3),
-            ("features_dc", 3),
-            ("features_rest", 3 * ((self.max_sh_degree + 1) ** 2 - 1)),
-            ("scaling", 3),
-            ("rotation", 4),
-            ("opacity", 1),
-            ("color", 3)  # RGB 색상 추가
+            ("xyz",3),
+            ("features_dc",3),
+            ("features_rest",3 * ((self.max_sh_degree + 1) ** 2 - 1)),
+            ("scaling",3),
+            ("rotation",4),
+            ("opacity",1),
         ])
-
-        # 각 가우시안의 색상 초기화 (RGB 3차원 벡터)
-        self._latents["color"] = torch.zeros(self.get_xyz.shape[0], 3, device="cuda")
-
-        # 이하 기존 코드 유지
         self.prob_models, self.ent_lambdas, self.latent_decoders = OrderedDict(), OrderedDict(), OrderedDict()
 
-        for i, param_name in enumerate(self.param_names):
+        for i,param_name in enumerate(self.param_names):
             if latent_args.quant_type[i] == 'sq':
                 self.latent_decoders[param_name] = LatentDecoder(
                     latent_dim=latent_args.latent_dim[i],
@@ -77,7 +71,9 @@ class GaussianModelSQ(GaussianModel):
                     use_gumbel=latent_args.use_gumbel[i],
                     diff_sampling=latent_args.diff_sampling[i]
                 ).cuda()
-                if latent_args.ent_lambda[i] > 0.0:
+                # self.latent_decoders[param_name].reset_parameters(
+                #     'constant',1.0/latent_args.latent_dim[i])
+                if latent_args.ent_lambda[i]>0.0:
                     self.prob_models[param_name] = BitEstimator(
                         latent_args.latent_dim[i],
                         num_layers=latent_args.prob_num_layers[i]
@@ -90,10 +86,9 @@ class GaussianModelSQ(GaussianModel):
                     use_gumbel=latent_args.use_gumbel[i],
                 ).cuda()
             else:
-                self.latent_decoders[param_name] = DecoderIdentity()
-
+                self.latent_decoders[param_name]=DecoderIdentity()
+        
         self.hc = HardConcrete(latent_args.hc_gamma, latent_args.hc_eta, latent_args.hc_temp).cuda()
-
         if latent_args.opacity_act == "sigmoid":
             self.opacity_activation = torch.sigmoid
             self.inverse_opacity_activation = inverse_sigmoid
@@ -670,9 +665,3 @@ class GaussianModelSQ(GaussianModel):
         self.prune_points(prune_mask)
         self.influence *= 0
         self.infl_denom *= 0
-
-    def setup_functions(self):
-        super().setup_functions()
-        # 각 가우시안의 색상 초기화
-        self._latents["color"] = torch.zeros(self.get_xyz.shape[0], 3, device="cuda")  # RGB 값
-        

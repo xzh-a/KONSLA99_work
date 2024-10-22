@@ -64,16 +64,15 @@ def get_gpu_memory():
     return memory_used_values
 
 
-def apply_structured_pruning(model, amount=0.2):
+def apply_structured_pruning(gaussians, amount=0.2):
     """
-    Conv2D 레이어의 필터 단위로 구조적 가지치기를 적용합니다.
+    GaussianModelSQ 클래스의 _latents에 대해 구조적 가지치기를 적용합니다.
     amount: 프루닝할 필터의 비율 (0.2는 20%를 의미)
     """
-    for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Conv2d):
-            prune.ln_structured(module, name='weight', amount=amount, n=2, dim=0)
-            prune.remove(module, 'weight')  # 프루닝 적용 후 가중치 정리
-
+    for param_name, weight in gaussians._latents.items():  # _latents 속성을 딕셔너리 형태로 접근
+        prune.ln_structured(weight, name='weight', amount=amount, n=2, dim=0)
+        prune.remove(weight, 'weight')
+        
 def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_iterations, checkpoint, debug_from, parse_args):
     first_iter = 0
     generator = Random(0)

@@ -58,21 +58,20 @@ except ImportError:
     WANDB_FOUND = False
 
 
-def dynamic_gradient_pruning(model, threshold=1e-3):
+def dynamic_gradient_pruning(gaussians, threshold=1e-3):
     """
     학습 과정에서 기울기 크기 기반으로 동적 가지치기를 적용합니다.
     threshold: 기울기의 절대값이 이 값보다 작으면 프루닝 대상으로 간주.
     """
-    def prune_by_gradient(module, threshold):
+    def prune_by_gradient(weight, threshold):
         with torch.no_grad():
-            weight = module.weight
             grad = weight.grad
-            mask = torch.abs(grad) > threshold
-            weight *= mask  # 가중치를 유지할 마스크 적용
+            if grad is not None:  # gradient가 존재하는지 확인
+                mask = torch.abs(grad) > threshold
+                weight.data *= mask
 
-    for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
-            prune_by_gradient(module, threshold)
+    for param_name, weight in gaussians._latents.items():  # _latents 속성을 딕셔너리 형태로 접근
+        prune_by_gradient(weight, threshold)
 
 
 def get_gpu_memory():

@@ -58,16 +58,15 @@ except ImportError:
     WANDB_FOUND = False
 
 
-def apply_magnitude_pruning(model, amount=0.2):
+def apply_magnitude_pruning(gaussians, amount=0.2):
     """
-    모델의 모든 가중치에 대해 절대값 기준으로 정적 가지치기를 적용합니다.
+    GaussianModelSQ 클래스의 가중치에 대해 절대값 기준으로 정적 가지치기를 적용합니다.
     amount: 프루닝할 가중치의 비율 (0.2는 20%를 의미)
     """
-    for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
-            prune.l1_unstructured(module, name='weight', amount=amount)
-            prune.remove(module, 'weight')  # 프루닝 적용 후 가중치 정리
-
+    for param_name, decoder in gaussians.latent_decoders.items():  # 가중치를 딕셔너리로 반환한다고 가정
+        if hasattr(decoder, 'weight'):
+            prune.l1_unstructured(decoder, name='weight', amount=amount)
+            prune.remove(decoder, 'weight')
 
 def get_gpu_memory():
     command = "nvidia-smi --query-gpu=memory.used --format=csv"
