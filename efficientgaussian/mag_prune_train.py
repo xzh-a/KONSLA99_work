@@ -44,6 +44,7 @@ from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams, QuantizeParams
 import torch.nn.utils.prune as prune
 
+import time
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -504,8 +505,8 @@ def measure_fps(scene, gaussians, pipeline, background, use_amp):
                             globals={'views': views, 'gaussians': gaussians, 'pipeline': pipeline, 
                                      'background': background, 'use_amp': use_amp},
                             )
-        time = t0.timeit(50)
-        fps = len(views)/time.median
+        r_time = t0.timeit(50)
+        fps = len(views)/r_time.median
         print("Rendering FPS: ", fps)
     return fps
         
@@ -583,6 +584,8 @@ def evaluate(images, scene_dir, iteration, wandb_enabled=False):
     return full_dict
 
 if __name__ == "__main__":
+
+    start_time = time.time()  # 프로그램 시작 시간 기록
 
     # Config file is used for argument defaults. Command line arguments override config file.
     config_path = sys.argv[sys.argv.index("--config")+1] if "--config" in sys.argv else None
@@ -674,4 +677,6 @@ if __name__ == "__main__":
         shutil.rmtree(os.path.join(args.model_path, "point_cloud_best"))
 
     # All done
-    print("\nTraining complete.")
+    end_time = time.time()  # 프로그램 종료 시간 기록
+    elapsed_time = end_time - start_time
+    print(f"\nTraining complete. Total execution time: {elapsed_time:.2f} seconds.")

@@ -44,7 +44,7 @@ from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams, QuantizeParams
 
 import torch.nn.utils.prune as prune
-
+import time
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -58,20 +58,18 @@ except ImportError:
     WANDB_FOUND = False
 
 
-def dynamic_gradient_pruning(gaussians, threshold=1e-3):
+def apply_importance_pruning(gaussians, amount=0.2):
     """
-    학습 과정에서 기울기 크기 기반으로 동적 가지치기를 적용합니다.
-    threshold: 기울기의 절대값이 이 값보다 작으면 프루닝 대상으로 간주.
+    GaussianModelSQ 클래스의 _latents에 대해 중요도를 기반으로 프루닝합니다.
+    여기서 중요도는 기울기 * 가중치의 절대값으로 정의됩니다.
     """
-    def prune_by_gradient(weight, threshold):
-        with torch.no_grad():
-            grad = weight.grad
-            if grad is not None:  # gradient가 존재하는지 확인
-                mask = torch.abs(grad) > threshold
-                weight.data *= mask
+    for param_name, weight in gaussians._latents.items():
+        if weight.grad is not None:
+            importance = torch.abs(weight) * torch.abs(weight.grad)
+            threshold = torch.quantile(importance, amount)
+            mask = importance > threshold
+            weight.data *= mask  # 중요도가 낮은 가중치를 제거
 
-    for param_name, weight in gaussians._latents.items():  # _latents 속성을 딕셔너리 형태로 접근
-        prune_by_gradient(weight, threshold)
 
 
 def get_gpu_memory():
@@ -215,7 +213,7 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
         # 구조적 가지치기 적용
         if iteration % 500 == 0:  # 500번 반복마다 적용 예시
-            dynamic_gradient_pruning(gaussians, threshold=1e-3)
+            apply_importance_pruning(gaussians,0.2)
 
         with torch.no_grad():
             # Progress bar
@@ -510,8 +508,8 @@ def measure_fps(scene, gaussians, pipeline, background, use_amp):
                             globals={'views': views, 'gaussians': gaussians, 'pipeline': pipeline, 
                                      'background': background, 'use_amp': use_amp},
                             )
-        time = t0.timeit(50)
-        fps = len(views)/time.median
+        r_time = t0.timeit(50)
+        fps = len(views)/r_time.median
         print("Rendering FPS: ", fps)
     return fps
         
@@ -589,6 +587,8 @@ def evaluate(images, scene_dir, iteration, wandb_enabled=False):
     return full_dict
 
 if __name__ == "__main__":
+
+    start_time = time.time()  # 프로그램 시작 시간 기록
 
     # Config file is used for argument defaults. Command line arguments override config file.
     config_path = sys.argv[sys.argv.index("--config")+1] if "--config" in sys.argv else None
@@ -680,4 +680,6 @@ if __name__ == "__main__":
         shutil.rmtree(os.path.join(args.model_path, "point_cloud_best"))
 
     # All done
-    print("\nTraining complete.")
+    end_time = time.time()  # 프로그램 종료 시간 기록
+    elapsed_time = end_time - start_time
+    print(f"\nTraining complete. Total execution time: {elapsed_time:.2f} seconds.")

@@ -44,6 +44,7 @@ from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams, QuantizeParams
 
 import torch.nn.utils.prune as prune
+import time
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -70,9 +71,13 @@ def apply_structured_pruning(gaussians, amount=0.2):
     amount: 프루닝할 필터의 비율 (0.2는 20%를 의미)
     """
     for param_name, weight in gaussians._latents.items():  # _latents 속성을 딕셔너리 형태로 접근
-        prune.ln_structured(weight, name='weight', amount=amount, n=2, dim=0)
-        prune.remove(weight, 'weight')
-        
+        if isinstance(weight, torch.nn.Parameter):
+            # Parameter 객체를 nn.Module로 래핑
+            module = torch.nn.Module()
+            module.register_parameter(param_name, weight)
+            prune.ln_structured(module, name=param_name, amount=amount, n=2, dim=0)
+            prune.remove(module, param_name)
+
 def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_iterations, checkpoint, debug_from, parse_args):
     first_iter = 0
     generator = Random(0)
@@ -502,8 +507,8 @@ def measure_fps(scene, gaussians, pipeline, background, use_amp):
                             globals={'views': views, 'gaussians': gaussians, 'pipeline': pipeline, 
                                      'background': background, 'use_amp': use_amp},
                             )
-        time = t0.timeit(50)
-        fps = len(views)/time.median
+        r_time = t0.timeit(50)
+        fps = len(views)/r_time.median
         print("Rendering FPS: ", fps)
     return fps
         
@@ -581,6 +586,9 @@ def evaluate(images, scene_dir, iteration, wandb_enabled=False):
     return full_dict
 
 if __name__ == "__main__":
+
+    start_time = time.time()  # 프로그램 시작 시간 기록
+
 
     # Config file is used for argument defaults. Command line arguments override config file.
     config_path = sys.argv[sys.argv.index("--config")+1] if "--config" in sys.argv else None
@@ -672,4 +680,6 @@ if __name__ == "__main__":
         shutil.rmtree(os.path.join(args.model_path, "point_cloud_best"))
 
     # All done
-    print("\nTraining complete.")
+    end_time = time.time()  # 프로그램 종료 시간 기록
+    elapsed_time = end_time - start_time
+    print(f"\nTraining complete. Total execution time: {elapsed_time:.2f} seconds.")
