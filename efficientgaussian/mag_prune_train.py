@@ -69,6 +69,23 @@ def apply_magnitude_pruning(gaussians, amount=0.2):
             prune.l1_unstructured(decoder, name='weight', amount=amount)
             prune.remove(decoder, 'weight')
 
+
+
+def fine_tune_model(gaussians, optimizer, scaler, loss, use_amp):
+    """
+    Fine-tune the model after pruning by performing an optimizer step.
+    """
+    if use_amp and scaler is not None:
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        loss.backward()
+        optimizer.step()
+    optimizer.zero_grad(set_to_none=True)
+
+
+
 def get_gpu_memory():
     command = "nvidia-smi --query-gpu=memory.used --format=csv"
     memory_used_info = sp.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
@@ -211,7 +228,9 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
         # 정적 가지치기 적용
         if iteration % 500 == 0:  # 500번 반복마다 적용
             apply_magnitude_pruning(gaussians, amount=0.2)
+        fine_tune_model(gaussians, gaussians.optimizer, scaler if opt.use_amp else None, loss, opt.use_amp)
 
+            
         with torch.no_grad():
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log

@@ -6,3 +6,9 @@
 
 # python ./train_eval.py --config ./configs/efficient-3dgs.yaml -s ./custom_data/s_free// -m ./log_dir/strike_freedom_p/origin/ --save_ply >> ./proj/origin.txt
 
+python ./importance_prune_train.py --config ./configs/efficient-3dgs.yaml -s ./custom_data/s_free/ -m ./log_dir/strike_freedom_p/fine_tuning/importance/ --save_ply >> ./proj/f_importance.txt
+
+python ./mag_prune_train.py --config ./configs/efficient-3dgs.yaml -s ./custom_data/s_free/ -m ./log_dir/strike_freedom_p/fine_tuning/magnitude/ --save_ply >> ./proj/f_mag.txt
+
+python ./struc_prune_train.py --config ./configs/efficient-3dgs.yaml -s ./custom_data/s_free/ -m ./log_dir/strike_freedom_p/fine_tuning/structured/ --save_ply >> ./proj/f_struc.txt
+

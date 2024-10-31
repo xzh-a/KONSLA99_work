@@ -45,6 +45,7 @@ from arguments import ModelParams, PipelineParams, OptimizationParams, QuantizeP
 
 import torch.nn.utils.prune as prune
 import time
+
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -69,6 +70,7 @@ def apply_importance_pruning(gaussians, amount=0.2):
             threshold = torch.quantile(importance, amount)
             mask = importance > threshold
             weight.data *= mask  # 중요도가 낮은 가중치를 제거
+
 
 
 

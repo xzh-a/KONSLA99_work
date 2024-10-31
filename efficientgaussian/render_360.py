@@ -152,12 +152,19 @@ def render_sets(dataset: ModelParams, iteration: int, pipeline: PipelineParams, 
 
         # PNG 파일이 있는지 확인
         if len(png_files) > 0:
-            # ffmpeg에 파일들을 하나씩 넘기는 방식으로 변경
-            input_files = '|'.join(png_files)
-            cmd = f"ffmpeg -y -framerate 30 -i {frames_path}/%05d.png -c:v libx264 -pix_fmt yuv420p {frames_path}/360.mp4"
-            sp.run(cmd, shell=True)
+            # ffmpeg 명령어를 사용해 PNG 파일을 비디오로 인코딩
+            cmd = f"ffmpeg -y -framerate 30 -i {frames_path}/%05d.png -vf \"scale=ceil(iw/2)*2:ceil(ih/2)*2\" -c:v libx264 -pix_fmt yuv420p {frames_path}/360.mp4"
+            try:
+                sp.run(cmd, shell=True, check=True)
+            except sp.CalledProcessError as e:
+                print(f"FFmpeg command failed with error: {e}")
         else:
             print(f"Error: No PNG files found in {frames_path}")
+    #-vf "scale=ceil(iw/2)*2:ceil(ih/2)*2" 옵션을 추가하여 가로(iw)와 세로(ih) 해상도를 각각 가장 가까운 짝수로 맞추도록 했습니다. 
+    # 이렇게 하면, FFmpeg가 자동으로 홀수 해상도를 짝수로 변환합니다.
+    # sp.run()에서 check=True를 추가하여 FFmpeg 명령어가 실패할 경우, 예외가 발생하도록 했습니다. 
+    # 이렇게 하면, FFmpeg 명령어 실행 중 발생하는 오류를 쉽게 디버깅할 수 있습니다.
+    # 이렇게 수정하면, FFmpeg 명령어에서 해상도를 짝수로 조정하고, PNG 파일들을 비디오로 인코딩하는 과정이 정상적으로 진행될 것입니다.
 
     return images, scene.loaded_iter
 

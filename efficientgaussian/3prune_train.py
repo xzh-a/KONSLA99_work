@@ -46,7 +46,6 @@ from arguments import ModelParams, PipelineParams, OptimizationParams, QuantizeP
 import torch.nn.utils.prune as prune
 import time
 
-
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -59,26 +58,37 @@ try:
 except ImportError:
     WANDB_FOUND = False
 
+
+def apply_magnitude_pruning(gaussians, amount=0.2):
+    """
+    GaussianModelSQ 클래스의 가중치에 대해 절대값 기준으로 정적 가지치기를 적용합니다.
+    amount: 프루닝할 가중치의 비율 (0.2는 20%를 의미)
+    """
+    for param_name, decoder in gaussians.latent_decoders.items():  # 가중치를 딕셔너리로 반환한다고 가정
+        if hasattr(decoder, 'weight'):
+            prune.l1_unstructured(decoder, name='weight', amount=amount)
+            prune.remove(decoder, 'weight')
+
+def apply_importance_pruning(gaussians, amount=0.2):
+    """
+    GaussianModelSQ 클래스의 _latents에 대해 중요도를 기반으로 프루닝합니다.
+    여기서 중요도는 기울기 * 가중치의 절대값으로 정의됩니다.
+    """
+    for param_name, weight in gaussians._latents.items():
+        if weight.grad is not None:
+            importance = torch.abs(weight) * torch.abs(weight.grad)
+            threshold = torch.quantile(importance, amount)
+            mask = importance > threshold
+            weight.data *= mask  # 중요도가 낮은 가중치를 제거
+
+
+
+
 def get_gpu_memory():
     command = "nvidia-smi --query-gpu=memory.used --format=csv"
     memory_used_info = sp.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
     memory_used_values = [int(x.split()[0]) for i, x in enumerate(memory_used_info)]
     return memory_used_values
-
-
-def apply_structured_pruning(gaussians, amount=0.2):
-    """
-    GaussianModelSQ 클래스의 _latents에 대해 구조적 가지치기를 적용합니다.
-    amount: 프루닝할 필터의 비율 (0.2는 20%를 의미)
-    """
-    for param_name, weight in gaussians._latents.items():  # _latents 속성을 딕셔너리 형태로 접근
-        if isinstance(weight, torch.nn.Parameter):
-            # Parameter 객체를 nn.Module로 래핑
-            module = torch.nn.Module()
-            module.register_parameter(param_name, weight)
-            prune.ln_structured(module, name=param_name, amount=amount, n=2, dim=0)
-            prune.remove(module, param_name)
-
 
 
 def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_iterations, checkpoint, debug_from, parse_args):
@@ -215,7 +225,8 @@ def training(seed, dataset, opt, pipe, quantize, saving_iterations, checkpoint_i
 
         # 구조적 가지치기 적용
         if iteration % 500 == 0:  # 500번 반복마다 적용 예시
-            apply_structured_pruning(gaussians, amount=0.2)
+            apply_magnitude_pruning(gaussians, amount=0.2)
+            apply_importance_pruning(gaussians,0.2)
 
         with torch.no_grad():
             # Progress bar
@@ -591,7 +602,6 @@ def evaluate(images, scene_dir, iteration, wandb_enabled=False):
 if __name__ == "__main__":
 
     start_time = time.time()  # 프로그램 시작 시간 기록
-
 
     # Config file is used for argument defaults. Command line arguments override config file.
     config_path = sys.argv[sys.argv.index("--config")+1] if "--config" in sys.argv else None
