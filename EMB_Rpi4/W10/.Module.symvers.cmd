@@ -1,1 +1,0 @@
-cmd_/home/vtoree/working/mingi-chae/EMB_Rpi4/W10/Module.symvers := sed 's/\.ko$$/\.o/' /home/vtoree/working/mingi-chae/EMB_Rpi4/W10/modules.order | scripts/mod/modpost -m -a  -o /home/vtoree/working/mingi-chae/EMB_Rpi4/W10/Module.symvers -e -i Module.symvers   -T -

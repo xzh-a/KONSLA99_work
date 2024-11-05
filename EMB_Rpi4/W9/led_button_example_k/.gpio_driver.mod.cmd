@@ -1,1 +1,0 @@
-cmd_/home/kihunlee/working/led_button_example_k/gpio_driver.mod := { echo  /home/kihunlee/working/led_button_example_k/gpio_driver.o;  echo; } > /home/kihunlee/working/led_button_example_k/gpio_driver.mod

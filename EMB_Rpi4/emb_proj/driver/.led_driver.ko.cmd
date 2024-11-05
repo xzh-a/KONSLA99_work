@@ -1,1 +1,0 @@
-cmd_/home/cocacola/working/proj/easy_version/driver/led_driver.ko := ld -r -EL -z noexecstack --build-id=sha1  -T scripts/module.lds -o /home/cocacola/working/proj/easy_version/driver/led_driver.ko /home/cocacola/working/proj/easy_version/driver/led_driver.o /home/cocacola/working/proj/easy_version/driver/led_driver.mod.o;  true
