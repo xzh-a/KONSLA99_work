@@ -1,3 +1,0 @@
-model_params:
-  source_path: 'data/mip-nerf/bicycle'
-  model_path: 'output/exp-bicycle'
